@@ -50,6 +50,7 @@ body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI"
 .foot{display:flex;justify-content:space-between;align-items:baseline;gap:2vw;font-size:clamp(12px,1.9vh,24px);color:var(--soft)}
 .foot .cl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .foot .cl b{color:var(--ink);font-weight:600}
+.foot .cr{white-space:nowrap;flex:none}
 .foot a{color:var(--ink);text-decoration:none;white-space:nowrap;font-weight:600}
 .stale{color:var(--mid)}
 .hint{position:fixed;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:1vh 1.4vw;border-radius:1vh;font-size:clamp(14px,2vh,24px);transition:opacity .6s}
@@ -76,7 +77,7 @@ body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI"
     <div class="count" id="count" hidden><div class="n" id="cn"></div><div class="l" id="cl"></div></div>
   </header>
   <main class="board" id="board" aria-live="polite"><div class="note"><h2>Loading live wait times</h2><p>Getting the latest from all four parks.</p></div></main>
-  <footer class="foot"><div class="cl" id="closed"></div><a href="https://themeparks.wiki" target="_blank" rel="noopener">Powered by ThemeParks.wiki</a></footer>
+  <footer class="foot"><div class="cl" id="closed"></div><div class="cr"><span id="upd"></span><a href="https://themeparks.wiki" target="_blank" rel="noopener">Powered by ThemeParks.wiki</a></div></footer>
 </div>
 <div class="hint gone" id="hint">Tap anywhere for full screen</div>
 <script>
@@ -174,6 +175,16 @@ body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI"
     return "";
   }
 
+  var ALIAS = {"The Many Adventures of Winnie the Pooh": "Winnie the Pooh", "Tomorrowland Transit Authority PeopleMover": "PeopleMover"};
+  function short(n) {
+    n = String(n || "");
+    if (ALIAS[n]) return ALIAS[n];
+    var m = n.match(/^Walt Disney World Railroad\s*[-–]\s*(.+)$/);
+    if (m) return "Railroad · " + m[1];
+    n = n.split(/\s+[-–~]\s+/)[0];
+    return n.replace(/\s+Starring\s+.+$/i, "");
+  }
+
   function tone(w) { return w <= 15 ? "s" : w <= 40 ? "m" : "l"; }
 
   function renderTabs() {
@@ -228,10 +239,10 @@ body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI"
 
     var h = hours(p.k), bits = [];
     if (h.cur) bits.push("Open <b>" + esc(t(h.cur.openingTime)) + " – " + esc(t(h.cur.closingTime)) + "</b>");
-    if (h.extra) bits.push(esc(h.extra.description) + " " + esc(t(h.extra.openingTime)) + " – " + esc(t(h.extra.closingTime)));
+    if (h.extra) bits.push(esc(h.extra.description.replace("Special Ticketed Event", "Party")) + " " + esc(t(h.extra.openingTime)) + " – " + esc(t(h.extra.closingTime)));
     var age = state.lastOk ? Date.now() - state.lastOk : 0;
-    if (state.lastOk) bits.push('<span class="' + (age > STALE_AFTER ? "stale" : "") + '">Updated ' + esc(t(new Date(state.lastOk).toISOString())) + (age > STALE_AFTER ? ", can't refresh" : "") + "</span>");
-    el("pmeta").innerHTML = bits.join(" · ") || "Loading live wait times…";
+    el("pmeta").innerHTML = bits.join(" · ") || (state.lastOk ? "Hours not available" : "Loading live wait times…");
+    el("upd").innerHTML = state.lastOk ? '<span class="' + (age > STALE_AFTER ? "stale" : "") + '">Updated ' + esc(t(new Date(state.lastOk).toISOString())) + (age > STALE_AFTER ? ", can't refresh" : "") + "</span> · " : "";
 
     var b = el("board"), data = state.live[p.k];
     if (!data) {
@@ -250,11 +261,11 @@ body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI"
         b.innerHTML = r.up.map(function (x) {
           var right = x.st === "down" ? '<span class="w d">Down</span>' : x.w == null ? '<span class="w o">Open</span>' : '<span class="w ' + tone(x.w) + '">' + x.w + "<i>min</i></span>";
           var sub = x.st === "up" ? ll(x.q) : "";
-          return '<div class="ride' + (x.st === "down" ? " isdown" : "") + '"><div class="nm">' + esc(x.n) + (sub ? '<span class="ll">' + esc(sub) + "</span>" : "") + "</div>" + right + "</div>";
+          return '<div class="ride' + (x.st === "down" ? " isdown" : "") + '"><div class="nm">' + esc(short(x.n)) + (sub ? '<span class="ll">' + esc(sub) + "</span>" : "") + "</div>" + right + "</div>";
         }).join("");
         layout();
       }
-      var cl = r.closed.map(function (c) { return c.n + (c.st === "REFURBISHMENT" ? " (refurb)" : ""); });
+      var cl = r.closed.map(function (c) { return short(c.n) + (c.st === "REFURBISHMENT" ? " (refurb)" : ""); });
       el("closed").innerHTML = cl.length ? "<b>Closed:</b> " + esc(cl.join(", ")) : "";
       if (state.err && age > STALE_AFTER) el("closed").innerHTML = '<span class="stale">' + esc(state.err) + ". Times above are from the last update.</span>";
     }
