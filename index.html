@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Wait Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE everyday, read from the couch across a room
+   IDEA the in-park tip board: one park at a time, rides and minutes in big signage type
+   PICTURE the board itself, filling the screen, sorted longest wait first
+   COLOUR each park owns a deep flat field (castle blue, EPCOT teal, studio red, jungle green); mint/yellow/coral wait pills
+   TYPE Barlow Condensed for names and numbers, Barlow for ride names
+   LAYOUT header band (park, hours, park switcher, countdown), ride grid in 2-3 columns, slim footer with closures and credit */
+:root{--park:#1b3a8f;--deep:#0f2460;--ink:#fff;--soft:rgba(255,255,255,.72);--faint:rgba(255,255,255,.14);--short:#7ee8b8;--mid:#ffd166;--long:#ff8f7e;--down:#ffffff}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%;margin:0}
+body{background:var(--park);color:var(--ink);font:500 16px/1.2 Barlow,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;transition:background-color .8s ease;-webkit-font-smoothing:antialiased;cursor:default}
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:2.6vh 2.4vw 1.6vh;gap:2vh}
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:end;gap:3vw}
+.park h1{margin:0;font:700 clamp(34px,7.4vh,96px)/.95 "Barlow Condensed",Barlow,sans-serif;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{margin-top:1vh;font-size:clamp(14px,2.3vh,30px);color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta b{color:var(--ink);font-weight:600}
+.tabs{display:flex;gap:.6vw;align-self:center}
+.tab{appearance:none;border:0;background:var(--faint);color:var(--soft);font:600 clamp(13px,1.9vh,24px)/1 Barlow,sans-serif;padding:1.1vh 1vw 1.3vh;border-radius:1vh;position:relative;overflow:hidden;cursor:pointer;text-align:left;min-width:6.5vw}
+.tab small{display:block;margin-top:.5vh;font-size:.78em;font-weight:500;opacity:.85;white-space:nowrap}
+.tab.on{background:#fff;color:var(--deep)}
+.tab:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.tab .bar{position:absolute;left:0;bottom:0;height:.45vh;width:0;background:var(--park)}
+.tab.on .bar.run{animation:fill var(--dwell,20s) linear forwards}
+@keyframes fill{to{width:100%}}
+.count{text-align:right;line-height:1}
+.count .n{font:700 clamp(34px,7.4vh,96px)/.95 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums}
+.count .l{margin-top:1vh;font-size:clamp(14px,2.3vh,30px);color:var(--soft);white-space:nowrap}
+.board{position:relative;display:grid;grid-auto-flow:column;column-gap:2vw;row-gap:.9vh;align-content:start}
+.ride{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:1vw;background:var(--deep);border-radius:1vh;padding:0 .6vw 0 1.1vw;height:var(--rh,60px)}
+.ride .nm{font-weight:600;font-size:var(--fs,24px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ride .ll{display:block;font-size:.62em;font-weight:500;color:var(--soft);margin-top:.15em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w{font:700 calc(var(--fs,24px)*1.35)/1 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums;color:#101418;border-radius:.7vh;padding:.12em .3em;min-width:2.9em;text-align:center;white-space:nowrap}
+.w i{font-style:normal;font-size:.55em;margin-left:.12em}
+.w.s{background:var(--short)}.w.m{background:var(--mid)}.w.l{background:var(--long)}
+.w.o{background:transparent;color:var(--soft);font-size:var(--fs,24px)}
+.w.d{background:transparent;color:var(--ink);border:2px solid var(--long);font-size:var(--fs,24px)}
+.ride.isdown .nm{color:var(--soft)}
+.note{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:2vh}
+.note h2{margin:0;font:700 clamp(30px,6vh,80px)/1 "Barlow Condensed",sans-serif}
+.note p{margin:0;font-size:clamp(16px,2.8vh,36px);color:var(--soft);max-width:60ch}
+.foot{display:flex;justify-content:space-between;align-items:baseline;gap:2vw;font-size:clamp(12px,1.9vh,24px);color:var(--soft)}
+.foot .cl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foot .cl b{color:var(--ink);font-weight:600}
+.foot a{color:var(--ink);text-decoration:none;white-space:nowrap;font-weight:600}
+.stale{color:var(--mid)}
+.hint{position:fixed;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:1vh 1.4vw;border-radius:1vh;font-size:clamp(14px,2vh,24px);transition:opacity .6s}
+.hint.gone{opacity:0;pointer-events:none}
+@media (max-width:760px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100%;padding:16px}
+  .top{grid-template-columns:minmax(0,1fr) auto;align-items:start}
+  .tabs{grid-column:1/-1;grid-row:2;flex-wrap:wrap}
+  .tab{flex:1 1 40%}
+  .board{grid-auto-flow:row;grid-template-rows:none!important;grid-template-columns:minmax(0,1fr)!important}
+  .note{position:static;padding:40px 0}
+  .foot{flex-direction:column}
+  .foot .cl{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){body{transition:none}.tab.on .bar.run{animation:none;width:100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="park"><h1 id="pname">Walt Disney World</h1><div class="meta" id="pmeta">Loading live wait times…</div></div>
+    <nav class="tabs" id="tabs" aria-label="Parks"></nav>
+    <div class="count" id="count" hidden><div class="n" id="cn"></div><div class="l" id="cl"></div></div>
+  </header>
+  <main class="board" id="board" aria-live="polite"><div class="note"><h2>Loading live wait times</h2><p>Getting the latest from all four parks.</p></div></main>
+  <footer class="foot"><div class="cl" id="closed"></div><a href="https://themeparks.wiki" target="_blank" rel="noopener">Powered by ThemeParks.wiki</a></footer>
+</div>
+<div class="hint gone" id="hint">Tap anywhere for full screen</div>
+<script>
+{
+  var API = "https://api.themeparks.wiki/v1/entity/";
+  var TZ = "America/New_York";
+  var PARKS = [
+    {k:"mk", name:"Magic Kingdom", short:"Magic Kingdom", id:"75ea578a-adc8-4116-a54d-dccb60765ef9", park:"#1b3a8f", deep:"#10255f"},
+    {k:"ep", name:"EPCOT", short:"EPCOT", id:"47f90d2c-e191-4239-a466-5892ef59a88b", park:"#0c6170", deep:"#063f4a"},
+    {k:"hs", name:"Hollywood Studios", short:"Hollywood Studios", id:"288747d1-8b4f-4a64-867e-ea7c9b27bad8", park:"#8a1f2d", deep:"#5c121c"},
+    {k:"ak", name:"Animal Kingdom", short:"Animal Kingdom", id:"1c84a229-8862-4648-9c71-378ddd2c7693", park:"#2c5a2a", deep:"#1b3d1a"}
+  ];
+  var LIVE_EVERY = 3 * 60 * 1000, SCHED_EVERY = 6 * 60 * 60 * 1000, STALE_AFTER = 15 * 60 * 1000;
+  var q = new URLSearchParams(location.search);
+  var DWELL = Math.max(8, parseInt(q.get("dwell") || "20", 10) || 20) * 1000;
+  var rotate = q.get("rotate") !== "0";
+  var state = {i: 0, live: {}, sched: {}, lastOk: 0, lastTry: 0, err: "", pauseUntil: 0};
+  var pin = q.get("park");
+  PARKS.forEach(function (p, n) { if (p.k === pin) { state.i = n; rotate = false; } });
+
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); };
+  var tfmt = new Intl.DateTimeFormat("en-US", {timeZone: TZ, hour: "numeric", minute: "2-digit"});
+  var dfmt = new Intl.DateTimeFormat("en-CA", {timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit"});
+  var wfmt = new Intl.DateTimeFormat("en-US", {timeZone: TZ, weekday: "long"});
+  var t = function (iso) { return tfmt.format(new Date(iso)).replace(":00", "").replace(" AM", " am").replace(" PM", " pm"); };
+  var parkDay = function (d) { return dfmt.format(d || new Date()); };
+
+  function getJSON(url) {
+    var ctl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 20000);
+    return fetch(url, {cache: "no-store", signal: ctl ? ctl.signal : undefined}).then(function (r) {
+      clearTimeout(timer);
+      if (r.status === 429) throw new Error("The data source asked us to slow down");
+      if (!r.ok) throw new Error("The data source answered " + r.status);
+      return r.json();
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+
+  function loadLive() {
+    state.lastTry = Date.now();
+    return Promise.all(PARKS.map(function (p) { return getJSON(API + p.id + "/live"); })).then(function (all) {
+      all.forEach(function (d, n) { if (d && d.liveData) state.live[PARKS[n].k] = d.liveData; });
+      state.lastOk = Date.now(); state.err = "";
+      render(false);
+    }).catch(function (e) {
+      state.err = (e && e.name === "AbortError") ? "The data source took too long to answer" : (e && e.message && e.message.indexOf("data source") > -1 ? e.message : "Can't reach the wait time service");
+      render(false);
+    });
+  }
+  function loadSched() {
+    return Promise.all(PARKS.map(function (p) {
+      return getJSON(API + p.id + "/schedule").then(function (d) { state.sched[p.k] = (d && d.schedule) || []; }).catch(function () {});
+    })).then(function () { render(false); });
+  }
+
+  function rides(k) {
+    var list = state.live[k] || [];
+    var out = [], closed = [];
+    list.forEach(function (r) {
+      if (r.entityType !== "ATTRACTION") return;
+      var sb = r.queue && r.queue.STANDBY;
+      if (r.status === "OPERATING" && sb) out.push({n: r.name, w: typeof sb.waitTime === "number" ? sb.waitTime : null, q: r.queue, st: "up"});
+      else if (r.status === "DOWN") out.push({n: r.name, w: null, q: r.queue, st: "down"});
+      else if (r.status === "CLOSED" || r.status === "REFURBISHMENT") { if (r.queue) closed.push({n: r.name, st: r.status}); }
+    });
+    out.sort(function (a, b) {
+      var ra = a.st === "down" ? -2 : (a.w == null ? -1 : a.w), rb = b.st === "down" ? -2 : (b.w == null ? -1 : b.w);
+      return rb - ra || a.n.localeCompare(b.n);
+    });
+    closed.sort(function (a, b) { return a.n.localeCompare(b.n); });
+    return {up: out, closed: closed};
+  }
+
+  function hours(k) {
+    var s = state.sched[k] || [], today = parkDay(), now = Date.now();
+    var op = s.filter(function (x) { return x.type === "OPERATING"; });
+    var cur = op.filter(function (x) { return x.date === today; })[0];
+    var next = op.filter(function (x) { return new Date(x.openingTime).getTime() > now; })[0];
+    var extra = s.filter(function (x) { return x.date === today && x.type === "TICKETED_EVENT" && x.description && x.description !== "Early Entry"; })[0];
+    return {cur: cur, next: next, extra: extra};
+  }
+
+  function avg(k) {
+    var w = rides(k).up.filter(function (r) { return r.w != null; }).map(function (r) { return r.w; });
+    if (!w.length) return null;
+    return Math.round(w.reduce(function (a, b) { return a + b; }, 0) / w.length);
+  }
+
+  function ll(qq) {
+    if (!qq) return "";
+    var f = qq.RETURN_TIME, p = qq.PAID_RETURN_TIME;
+    if (f && f.state === "AVAILABLE" && f.returnStart) return "Lightning Lane " + t(f.returnStart);
+    if (p && p.state === "AVAILABLE" && p.returnStart) return "Single Pass " + t(p.returnStart) + (p.price && p.price.formatted ? " · " + p.price.formatted : "");
+    return "";
+  }
+
+  function tone(w) { return w <= 15 ? "s" : w <= 40 ? "m" : "l"; }
+
+  function renderTabs() {
+    el("tabs").innerHTML = PARKS.map(function (p, n) {
+      var a = avg(p.k);
+      var sub = state.live[p.k] ? (a == null ? "Closed" : "Avg " + a + " min") : "—";
+      return '<button class="tab' + (n === state.i ? " on" : "") + '" data-i="' + n + '" id="tab-' + p.k + '">' + esc(p.short) + "<small>" + esc(sub) + '</small><span class="bar"></span></button>';
+    }).join("");
+    var on = el("tabs").querySelector(".tab.on .bar");
+    if (on && rotate && Date.now() > state.pauseUntil) {
+      document.documentElement.style.setProperty("--dwell", DWELL / 1000 + "s");
+      void on.offsetWidth; on.className = "bar run";
+    }
+  }
+
+  function renderCount() {
+    var trip = q.get("trip");
+    try { if (trip) localStorage.setItem("wb-trip", trip); else trip = localStorage.getItem("wb-trip"); } catch (e) {}
+    if (!trip || !/^\d{4}-\d{2}-\d{2}$/.test(trip)) { el("count").hidden = true; return; }
+    var a = parkDay().split("-").map(Number), b = trip.split("-").map(Number);
+    var days = Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 864e5);
+    if (days < 0) { el("count").hidden = true; return; }
+    var label = q.get("label") || "Disney World";
+    var when = new Date(Date.UTC(b[0], b[1] - 1, b[2], 12)).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "UTC"});
+    el("cn").textContent = days === 0 ? "Today!" : days === 1 ? "1 day" : days + " days";
+    el("cl").textContent = days === 0 ? label + " starts today" : "until " + label + " · " + when;
+    el("count").hidden = false;
+  }
+
+  function layout() {
+    var b = el("board"), n = b.querySelectorAll(".ride").length;
+    if (!n) return;
+    if (window.innerWidth <= 760) { b.style.setProperty("--rh", "56px"); b.style.setProperty("--fs", "18px"); return; }
+    var H = b.clientHeight, W = b.clientWidth;
+    var cols = n <= 8 ? 1 : n <= 18 ? 2 : 3;
+    if (W < 1100 && cols > 2) cols = 2;
+    var rowsN = Math.ceil(n / cols), gap = window.innerHeight * 0.009;
+    var rh = Math.min((H - gap * (rowsN - 1)) / rowsN, window.innerHeight * 0.11);
+    b.style.gridTemplateRows = "repeat(" + rowsN + ", auto)";
+    b.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0,1fr))";
+    b.style.setProperty("--rh", Math.floor(rh) + "px");
+    b.style.setProperty("--fs", Math.max(13, Math.min(rh * 0.36, 40)).toFixed(1) + "px");
+  }
+
+  function render(tabsToo) {
+    var p = PARKS[state.i];
+    document.body.style.backgroundColor = p.park;
+    document.documentElement.style.setProperty("--park", p.park);
+    document.documentElement.style.setProperty("--deep", p.deep);
+    el("pname").textContent = p.name;
+    renderCount();
+
+    var h = hours(p.k), bits = [];
+    if (h.cur) bits.push("Open <b>" + esc(t(h.cur.openingTime)) + " – " + esc(t(h.cur.closingTime)) + "</b>");
+    if (h.extra) bits.push(esc(h.extra.description) + " " + esc(t(h.extra.openingTime)) + " – " + esc(t(h.extra.closingTime)));
+    var age = state.lastOk ? Date.now() - state.lastOk : 0;
+    if (state.lastOk) bits.push('<span class="' + (age > STALE_AFTER ? "stale" : "") + '">Updated ' + esc(t(new Date(state.lastOk).toISOString())) + (age > STALE_AFTER ? ", can't refresh" : "") + "</span>");
+    el("pmeta").innerHTML = bits.join(" · ") || "Loading live wait times…";
+
+    var b = el("board"), data = state.live[p.k];
+    if (!data) {
+      b.style.gridTemplateRows = ""; b.style.gridTemplateColumns = "";
+      b.innerHTML = state.err
+        ? '<div class="note"><h2>Live wait times aren\'t loading</h2><p>' + esc(state.err) + ". Trying again every minute. No times are shown until real data arrives.</p></div>"
+        : '<div class="note"><h2>Loading live wait times</h2><p>Getting the latest from all four parks.</p></div>';
+    } else {
+      var r = rides(p.k);
+      if (!r.up.length) {
+        b.style.gridTemplateRows = ""; b.style.gridTemplateColumns = "";
+        var nx = h.next;
+        var msg = nx ? "Opens " + (parkDay(new Date(nx.openingTime)) === parkDay() ? "today" : wfmt.format(new Date(nx.openingTime))) + " at " + t(nx.openingTime) : "No rides are reporting wait times right now.";
+        b.innerHTML = '<div class="note"><h2>' + esc(p.name) + " is closed</h2><p>" + esc(msg) + "</p></div>";
+      } else {
+        b.innerHTML = r.up.map(function (x) {
+          var right = x.st === "down" ? '<span class="w d">Down</span>' : x.w == null ? '<span class="w o">Open</span>' : '<span class="w ' + tone(x.w) + '">' + x.w + "<i>min</i></span>";
+          var sub = x.st === "up" ? ll(x.q) : "";
+          return '<div class="ride' + (x.st === "down" ? " isdown" : "") + '"><div class="nm">' + esc(x.n) + (sub ? '<span class="ll">' + esc(sub) + "</span>" : "") + "</div>" + right + "</div>";
+        }).join("");
+        layout();
+      }
+      var cl = r.closed.map(function (c) { return c.n + (c.st === "REFURBISHMENT" ? " (refurb)" : ""); });
+      el("closed").innerHTML = cl.length ? "<b>Closed:</b> " + esc(cl.join(", ")) : "";
+      if (state.err && age > STALE_AFTER) el("closed").innerHTML = '<span class="stale">' + esc(state.err) + ". Times above are from the last update.</span>";
+    }
+    if (tabsToo !== false || !el("tabs").children.length) renderTabs();
+    else PARKS.forEach(function (pp) { var tb = el("tab-" + pp.k); if (tb) { var a = avg(pp.k); tb.querySelector("small").textContent = state.live[pp.k] ? (a == null ? "Closed" : "Avg " + a + " min") : "—"; } });
+  }
+
+  var timer = null;
+  function plan() {
+    clearTimeout(timer);
+    if (!rotate) return;
+    var wait = Math.max(DWELL, state.pauseUntil - Date.now());
+    timer = setTimeout(function () { state.pauseUntil = 0; go(state.i + 1, false); }, wait);
+  }
+  function go(n, manual) {
+    state.i = (n + PARKS.length) % PARKS.length;
+    if (manual) state.pauseUntil = Date.now() + 2 * 60 * 1000;
+    render(true);
+    plan();
+  }
+
+  el("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest(".tab") : null;
+    if (b) { e.stopPropagation(); go(parseInt(b.getAttribute("data-i"), 10), true); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") { go(state.i + 1, true); e.preventDefault(); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { go(state.i - 1, true); e.preventDefault(); }
+    else if (e.key === "Enter" || e.key === " ") { rotate = !rotate; state.pauseUntil = 0; render(true); plan(); e.preventDefault(); }
+  });
+
+  var lock = null;
+  function wake() {
+    try { if (navigator.wakeLock && !lock) navigator.wakeLock.request("screen").then(function (l) { lock = l; l.addEventListener("release", function () { lock = null; }); }).catch(function () {}); } catch (e) {}
+  }
+  document.addEventListener("click", function () {
+    wake();
+    var d = document.documentElement;
+    try { if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen().catch(function () {}); } catch (e) {}
+    el("hint").className = "hint gone";
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") { wake(); if (Date.now() - state.lastTry > 60000) loadLive(); }
+  });
+  if ("ontouchstart" in window) { el("hint").className = "hint"; setTimeout(function () { el("hint").className = "hint gone"; }, 9000); }
+
+  var ro = window.ResizeObserver ? new ResizeObserver(function () { layout(); }) : null;
+  if (ro) ro.observe(el("board")); else window.addEventListener("resize", layout);
+
+  setInterval(function () { loadLive(); }, LIVE_EVERY);
+  setInterval(function () { if (state.err) loadLive(); }, 60000);
+  setInterval(function () { loadSched(); }, SCHED_EVERY);
+  setInterval(function () { render(false); }, 30000);
+  setTimeout(function () { location.reload(); }, 12 * 60 * 60 * 1000);
+
+  render(true);
+  plan();
+  loadLive();
+  loadSched();
+}
+</script>
+</body>
+</html>
